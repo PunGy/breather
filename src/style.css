@@ -6,6 +6,24 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ─────────────────────────────────────────────────────────────
+   Global UI scale — the whole interface is meant to read large
+   ("big, calm"). Every Tailwind size is rem-based, so scaling the root
+   font-size scales text, spacing, the orb and the cards together.
+
+   It's fluid: 1.25× on phones (big, but the header still fits) growing
+   to the full 1.5× (≈ the app viewed at 150% zoom) by ~1200px, where
+   there's room for it.
+   Media-query breakpoints are unaffected (in a media query `rem`
+   resolves against the browser default, not this value), so the
+   responsive layout still switches at the same viewport widths.
+
+   Single knob for overall size — raise the clamp's max to taste.
+   ───────────────────────────────────────────────────────────── */
+html {
+  font-size: clamp(1.25rem, 0.75rem + 1vw, 1.5rem);
+}
+
+/* ─────────────────────────────────────────────────────────────
    Theme tokens — `data-theme` is set on <html> by the switcher
    (auto resolves to light/dark). These vars drive the accent
    everywhere, including the canvas. Read it in JS with:

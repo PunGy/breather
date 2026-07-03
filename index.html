@@ -4,10 +4,68 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="X-UA-Compatible" content="ie=edge" />
-    <title>Breather</title>
 
+    <!-- Primary SEO -->
+    <!-- NOTE: replace https://breather.pungy.me with the production domain before deploying. -->
+    <title>Breather — Guided breathing for calm, focus &amp; sleep</title>
+    <meta
+      name="description"
+      content="A free, ad-free breathing guide with coherent, box, and 4-7-8 patterns, a soothing visual, and gentle cosmic ambience to help you relax, focus, or wind down for sleep."
+    />
+    <link rel="canonical" href="https://breather.pungy.me/" />
+    <meta name="author" content="PunGy" />
+    <meta name="robots" content="index, follow" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
+
+    <!-- Icons — SVG primary, ICO/PNG fallbacks for legacy, iOS, and Android/PWA -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph (Facebook, LinkedIn, Slack, …) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Breather" />
+    <meta property="og:title" content="Breather — Guided breathing for calm, focus &amp; sleep" />
+    <meta
+      property="og:description"
+      content="A free, ad-free breathing guide with coherent, box, and 4-7-8 patterns and gentle cosmic ambience — relax, focus, or drift to sleep."
+    />
+    <meta property="og:url" content="https://breather.pungy.me/" />
+    <meta property="og:image" content="https://breather.pungy.me/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Breather — a calm space to slow your breath" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Breather — Guided breathing for calm, focus &amp; sleep" />
+    <meta
+      name="twitter:description"
+      content="A free, ad-free breathing guide with coherent, box, and 4-7-8 patterns and gentle cosmic ambience — relax, focus, or drift to sleep."
+    />
+    <meta name="twitter:image" content="https://breather.pungy.me/og.png" />
+    <meta name="twitter:image:alt" content="Breather — a calm space to slow your breath" />
+
+    <!-- Structured data for rich results -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Breather",
+        "url": "https://breather.pungy.me/",
+        "description": "A free breathing guide with coherent, box, and 4-7-8 patterns, a soothing visual, and gentle cosmic ambience to help you relax, focus, or wind down for sleep.",
+        "applicationCategory": "HealthApplication",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires JavaScript.",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "author": { "@type": "Person", "name": "PunGy", "url": "https://blog.pungy.me" }
+      }
+    </script>
 
     <!-- Resolve the theme before paint to avoid a flash of the wrong colours. -->
     <script>

@@ -1,0 +1,94 @@
+/* @author: CLAUDE-OPUS4.8 */
+@import "tailwindcss";
+
+/* Drive dark mode from data-theme (set by JS) instead of the media query,
+   so the Auto / Light / Dark switcher can override the system preference. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ─────────────────────────────────────────────────────────────
+   Theme tokens — `data-theme` is set on <html> by the switcher
+   (auto resolves to light/dark). These vars drive the accent
+   everywhere, including the canvas. Read it in JS with:
+     getComputedStyle(document.documentElement).getPropertyValue('--accent')
+   ───────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --accent: #7c3aed; /* violet-600 */
+  --accent-strong: #6d28d9; /* violet-700 */
+  --accent-contrast: #ffffff;
+  --accent-soft: #ede9fe; /* violet-100 */
+
+  /* Breathing orb (light theme). A light‑violet centre keeps the near‑black
+     readout that sits on it highly legible (~6.5:1 on violet‑400), while a
+     saturated violet‑600 rim keeps the whole disc clearly defined against the
+     near‑white card (~5.7:1). */
+  --breath-fill: #a78bfa; /* violet-400 — orb centre */
+  --breath-fill-edge: #7c3aed; /* violet-600 — orb rim */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --accent: #a78bfa; /* violet-400 */
+  --accent-strong: #c4b5fd; /* violet-300 */
+  --accent-contrast: #0b0a14;
+  --accent-soft: #2e1065; /* violet-950 */
+
+  /* Breathing orb (dark theme) — mirrored: a deeper violet‑700 centre lets the
+     white readout clear ~7:1, while a luminous violet‑500 rim keeps the disc
+     glowing against the dark card. */
+  --breath-fill: #6d28d9; /* violet-700 — orb centre */
+  --breath-fill-edge: #8b5cf6; /* violet-500 — orb rim */
+}
+
+/* Reusable pill button used by the presets and session length.
+   Toggle the active state from JS with aria-pressed="true". */
+@layer components {
+  .chip {
+    @apply rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm
+      font-medium text-slate-600 transition hover:border-violet-300
+      hover:text-violet-700 focus:outline-none focus-visible:ring-2
+      focus-visible:ring-violet-500 aria-pressed:border-violet-600
+      aria-pressed:bg-violet-600 aria-pressed:text-white aria-pressed:shadow-sm
+      aria-pressed:shadow-violet-600/30 dark:border-white/10 dark:bg-white/5
+      dark:text-slate-300 dark:hover:border-violet-500/50 dark:hover:text-violet-200
+      dark:aria-pressed:border-violet-500 dark:aria-pressed:bg-violet-500
+      dark:aria-pressed:text-white;
+  }
+
+  /* Inline text links — clearly set apart from body copy with the accent
+     colour and an underline, while staying legible in both themes. */
+  .link {
+    @apply font-medium text-violet-700 underline decoration-violet-400/60
+      decoration-1 underline-offset-2 transition-colors hover:text-violet-800
+      hover:decoration-violet-500 focus:outline-none focus-visible:rounded-sm
+      focus-visible:ring-2 focus-visible:ring-violet-500 dark:text-violet-300
+      dark:decoration-violet-400/50 dark:hover:text-violet-200
+      dark:hover:decoration-violet-300;
+  }
+}
+
+/* Dim the ambient options while audio is switched off. */
+.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Sliders pick up the purple accent (Tailwind accent-* classes win when the
+   dark: variant is active; this is the light/fallback value). */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* Smoothly fade the surfaces that aren't covered by a `transition` utility
+   when the theme changes. */
+body,
+section {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  section {
+    transition: none;
+  }
+}

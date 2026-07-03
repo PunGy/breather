@@ -52,7 +52,7 @@
           </span>
           <div>
             <h1 class="text-lg font-semibold tracking-tight">Breather</h1>
-            <p class="text-xs text-slate-500 dark:text-slate-400">Let's breathe for a little</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">For breathing</p>
           </div>
         </div>
 
@@ -177,6 +177,7 @@
               <button type="button" id="calm" data-preset="4,0,6,0" aria-pressed="false" class="chip">Calm</button>
               <button type="button" id="custom" data-preset="6,0,6,0" aria-pressed="false" class="chip">Custom</button>
             </div>
+            <p id="pattern-desc" class="text-xs leading-relaxed text-slate-500 dark:text-slate-400"></p>
           </div>
 
           <!-- Phase durations -->
@@ -262,8 +263,10 @@
             <div id="ambient-row" class="flex flex-col gap-2 transition-opacity">
               <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Ambient sound</label>
               <div class="flex flex-wrap gap-2">
-                <button type="button" id="ambient-off" aria-pressed="false" class="chip">Off</button>
-                <button type="button" id="ambient-alpha" aria-pressed="true" class="chip">Alpha waves</button>
+                <button type="button" id="ambient-off" aria-pressed="false" class="chip" title="Marimba cues only — no ambient bed">Off</button>
+                <button type="button" id="ambient-alpha" aria-pressed="true" class="chip" title="Alpha ~10 Hz — relaxed wakefulness">Alpha</button>
+                <button type="button" id="ambient-theta" aria-pressed="false" class="chip" title="Theta ~6 Hz — drowsy wind‑down">Theta</button>
+                <button type="button" id="ambient-delta" aria-pressed="false" class="chip" title="Delta ~2.5 Hz — deep, prepare for sleep">Deep sleep</button>
               </div>
             </div>
           </div>
@@ -271,7 +274,7 @@
       </div>
 
       <footer class="text-center text-xs text-slate-500 dark:text-slate-400">
-        Authored by <a href="https://blog.pungy.me" class="link">PunGy</a> using <a href="https://github.com/pungy/reroi" class="link">reroi</a>. <a href="https://github.com/pungy/breather" class="link">Source code</a>
+        Authored by <a href="https://blog.pungy.me" class="link">PunGy</a> using <a href="https://github.com/pungy/reroi" class="link">reroi</a>. Explore <a href="https://github.com/pungy/breather" class="link">source code</a>
       </footer>
     </main>
 

@@ -23,9 +23,11 @@ import { Persistence } from "./persistence";
  *      filter opens on the inhale and closes on the exhale, so the pad blooms
  *      and settles with the body instead of changing loudness abruptly.
  *
- *   3. Alpha shimmer — a very quiet ~10 Hz binaural/isochronic layer sitting
- *      under everything, for a faint sense of depth and relaxed‑wakeful
- *      (alpha‑band) background.
+ *   3. Entrainment shimmer — a very quiet binaural/isochronic layer sitting
+ *      under everything, for a faint sense of depth. Its band is selectable
+ *      (see {@link AmbientMode}): alpha for relaxed wakefulness, or the slower
+ *      theta / delta bands for a warmer, sleepier "wind‑down" bed. The pad
+ *      darkens in step, so the deeper bands feel cosier.
  *
  * Anti‑headache treatment (see the accompanying notes):
  *   · fundamentals kept low; a high‑pass removes sub‑bass pressure,
@@ -43,9 +45,13 @@ import { Persistence } from "./persistence";
  * Start/Stop action that drives the frame loop.
  */
 /** Which continuous background bed plays under the breathing cues. `off`
- *  silences the pad + alpha layers (the marimba cues still sound); `alpha`
- *  runs the full cosmic bed with the ~10 Hz alpha shimmer. */
-export type AmbientMode = "off" | "alpha";
+ *  silences the pad + entrainment layers (the marimba cues still sound); the
+ *  other modes run the full cosmic bed, differing in the brainwave band the
+ *  faint shimmer nudges toward and how warm/dark the pad sits:
+ *    · `alpha` (~10 Hz) — relaxed wakefulness, the brightest bed (default);
+ *    · `theta` (~6 Hz)  — a drowsy, warmer wind‑down;
+ *    · `delta` (~2.5 Hz)— the deep‑sleep band, darkest/warmest, for pre‑sleep. */
+export type AmbientMode = "off" | "alpha" | "theta" | "delta";
 
 export interface AudioController {
   /** Create/resume the audio graph and fade the bed in. Must be called from a
@@ -103,15 +109,27 @@ const MASTER_LEVEL = 0.6; // keep it below a whisper
 const CUE_LEVEL = 0.45; // marimba bus — the clearest voice
 const PAD_LEVEL = 0.016; // pad bus — a faint wash under the notes (~1/5 of before)
 const REVERB_SEND = 0.34; // space, for the ambient feel
-const PAD_BASE_CUT = 800; // Hz — the closed/rest brightness of the pad
-
-// A subtle alpha‑wave layer (~10 Hz). On headphones the two carriers form a
-// binaural beat; on speakers they sum to a faint, slow shimmer. Kept quiet so
-// it reads as background depth rather than an obvious pulse — alpha (relaxed
-// wakefulness) rather than the drowsier theta.
-const ALPHA_CARRIER = 220; // A3
-const ALPHA_BEAT = 10; // Hz — alpha band (8–12 Hz)
-const ALPHA_LEVEL = 0.02; // barely there — depth, not a pulse
+// Each ambient bed picks a brainwave band for the faint entrainment shimmer and
+// a matching pad "warmth" (the pad's closed/rest low‑pass cutoff), so the whole
+// soundscape gets progressively darker and sleepier as you step down the ladder.
+// On headphones the two carriers form a binaural beat; on speakers they sum to a
+// faint, slow shimmer — kept subliminal, depth rather than an obvious pulse. The
+// carrier drops with the band too, so deeper beds sit a touch lower and warmer.
+interface AmbientBed {
+  /** Binaural beat frequency (Hz) — the band this bed nudges toward. */
+  beat: number;
+  /** Carrier the beat rides on (Hz); lower carriers read as warmer/deeper. */
+  carrier: number;
+  /** Pad closed/rest low‑pass cutoff (Hz) — how bright/dark the pad sits. */
+  padCut: number;
+}
+type ActiveBed = Exclude<AmbientMode, "off">;
+const BEDS: Record<ActiveBed, AmbientBed> = {
+  alpha: { beat: 10, carrier: 220, padCut: 800 }, // A3 · relaxed wakefulness (8–12 Hz)
+  theta: { beat: 6, carrier: 174.61, padCut: 560 }, // F3 · drowsy wind‑down (4–7 Hz)
+  delta: { beat: 2.5, carrier: 130.81, padCut: 400 }, // C3 · deep sleep (0.5–4 Hz)
+};
+const ENTRAIN_LEVEL = 0.02; // barely there — depth, not a pulse
 
 const AudioCtx: typeof AudioContext =
   window.AudioContext ??
@@ -127,14 +145,22 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
   let master: GainNode;
   let cueBus: GainNode;
   let padBus: GainNode;
-  let ambientBus: GainNode; // pad + alpha bed, gated by the ambient setting
+  let ambientBus: GainNode; // pad + entrainment bed, gated by the ambient setting
   let reverb: ConvolverNode;
   let padFilter: BiquadFilterNode;
+  // The two binaural carriers; retuned when the ambient band changes.
+  let entrainLow: OscillatorNode;
+  let entrainHigh: OscillatorNode;
 
   let running = false; // a session is active (Start pressed)
   // Restored from persistence (defaults: audio on, alpha bed).
   let enabled = persistence.get(ENABLED_KEY) !== "false"; // master audio switch
-  let ambient: AmbientMode = persistence.get(AMBIENT_KEY) === "off" ? "off" : "alpha";
+  const parseAmbient = (v: string | null): AmbientMode =>
+    v === "off" || v === "theta" || v === "delta" || v === "alpha" ? v : "alpha";
+  let ambient: AmbientMode = parseAmbient(persistence.get(AMBIENT_KEY));
+  // The pad's rest low‑pass cutoff, taken from the active bed's warmth; read live
+  // in applyBrightness so phase transitions track whichever bed is playing.
+  let padBaseCut = (ambient === "off" ? BEDS.alpha : BEDS[ambient]).padCut;
   let prevPhase = BreathingPhase.STOP;
 
   /** Random‑noise impulse response — a cheap, smooth reverb tail. */
@@ -197,7 +223,7 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     // "Off" ambient setting can silence them while the marimba cues (cueBus)
     // keep sounding.
     ambientBus = ctx.createGain();
-    ambientBus.gain.value = ambient === "alpha" ? 1 : 0.0001;
+    ambientBus.gain.value = ambient === "off" ? 0.0001 : 1;
     ambientBus.connect(master);
     ambientBus.connect(reverb);
 
@@ -212,7 +238,7 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     padFilter = ctx!.createBiquadFilter();
     padFilter.type = "lowpass";
     padFilter.Q.value = 0.4;
-    padFilter.frequency.value = PAD_BASE_CUT;
+    padFilter.frequency.value = padBaseCut;
 
     const highpass = ctx!.createBiquadFilter();
     highpass.type = "highpass";
@@ -264,24 +290,31 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     padFilter.connect(highpass).connect(padBus);
   };
 
-  /** The faint alpha layer: two carriers a beat‑frequency apart, panned hard
-   *  L/R, sitting quietly under the master. */
-  const buildAlpha = () => {
+  /** The faint entrainment layer: two carriers a beat‑frequency apart, panned
+   *  hard L/R, sitting quietly under the master. Built once at the active bed's
+   *  band; {@link setAmbient} ramps the carriers to switch bands live. */
+  const buildEntrainment = () => {
+    const bed = ambient === "off" ? BEDS.alpha : BEDS[ambient];
+
     const lowpass = ctx!.createBiquadFilter();
     lowpass.type = "lowpass";
-    lowpass.frequency.value = ALPHA_CARRIER * 4;
+    lowpass.frequency.value = 900; // pure sines — only shaves any stray harmonics
     const level = ctx!.createGain();
-    level.gain.value = ALPHA_LEVEL;
+    level.gain.value = ENTRAIN_LEVEL;
     lowpass.connect(level).connect(ambientBus);
 
-    const pair: Array<[number, number]> = [
-      [ALPHA_CARRIER, -1],
-      [ALPHA_CARRIER + ALPHA_BEAT, 1],
+    entrainLow = ctx!.createOscillator();
+    entrainLow.type = "sine";
+    entrainLow.frequency.value = bed.carrier;
+    entrainHigh = ctx!.createOscillator();
+    entrainHigh.type = "sine";
+    entrainHigh.frequency.value = bed.carrier + bed.beat;
+
+    const pair: Array<[OscillatorNode, number]> = [
+      [entrainLow, -1],
+      [entrainHigh, 1],
     ];
-    for (const [freq, pan] of pair) {
-      const osc = ctx!.createOscillator();
-      osc.type = "sine";
-      osc.frequency.value = freq;
+    for (const [osc, pan] of pair) {
       const panner = ctx!.createStereoPanner();
       panner.pan.value = pan;
       osc.connect(panner).connect(lowpass);
@@ -313,7 +346,14 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
 
   /** Open or close the pad's low‑pass over the phase, so it breathes with you. */
   const applyBrightness = (voice: PhaseVoice, durSecs: number) => {
-    rampParam(padFilter.frequency, PAD_BASE_CUT * voice.bright, Math.max(durSecs * 0.9, 0.4));
+    rampParam(padFilter.frequency, padBaseCut * voice.bright, Math.max(durSecs * 0.9, 0.4));
+  };
+
+  /** Re‑settle the pad's low‑pass toward the active bed's warmth for the current
+   *  phase, so switching beds warms/brightens the pad without waiting a phase. */
+  const retunePad = (secs: number) => {
+    const voice = VOICES[read(breathControl.activePhase)];
+    rampParam(padFilter.frequency, padBaseCut * (voice ? voice.bright : 1), secs);
   };
 
   // Same shape as the animation loop: watch the phase inside the frame and act
@@ -342,7 +382,7 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     if (!ctx) {
       buildGraph();
       buildPad();
-      buildAlpha();
+      buildEntrainment();
     }
     void ctx!.resume();
     rampGain(master.gain, MASTER_LEVEL, 0.9); // fade in, no click
@@ -393,8 +433,16 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     setAmbient(mode: AmbientMode) {
       ambient = mode;
       persistence.set(AMBIENT_KEY, mode);
-      if (!ctx) return; // otherwise applied at build time via the initial gain
-      rampGain(ambientBus.gain, mode === "alpha" ? 1 : 0.0001, 0.6);
+      if (mode !== "off") padBaseCut = BEDS[mode].padCut;
+      if (!ctx) return; // otherwise applied at build time via the initial values
+      rampGain(ambientBus.gain, mode === "off" ? 0.0001 : 1, 0.6);
+      if (mode !== "off") {
+        // Slide the carriers to the new band and re‑warm the pad to match.
+        const bed = BEDS[mode];
+        rampParam(entrainLow.frequency, bed.carrier, 0.8);
+        rampParam(entrainHigh.frequency, bed.carrier + bed.beat, 0.8);
+        retunePad(1.5);
+      }
     },
     get enabled() {
       return enabled;

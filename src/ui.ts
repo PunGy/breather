@@ -150,7 +150,10 @@ function initPanels(): Panels {
 }
 
 function initControls(): Controls {
-  function registerSelect<T, L extends string>(buttons: Array<L>, map: Record<L, T>, initial: L): Select<T> {
+  // `onApply` runs on every selection — a click *or* a silent select() — so the
+  // UI can keep dependent presentation (e.g. the pattern blurb) in sync without
+  // listening to app-level changes. Mirrors registerToggle's `onApply`.
+  function registerSelect<T, L extends string>(buttons: Array<L>, map: Record<L, T>, initial: L, onApply?: (value: T) => void): Select<T> {
     let active: L = initial;
 
     const registry = {} as Record<L, HTMLButtonElement>;
@@ -167,6 +170,8 @@ function initControls(): Controls {
         elem.ariaPressed = 'true';
 
         active = id;
+
+        onApply?.(map[id]);
 
         return map[id];
     }
@@ -339,11 +344,31 @@ function initControls(): Controls {
     }
   }
 
+  // A one‑line "what it's for & how" for each pattern, shown under the chips.
+  // It intentionally does *not* restate the cadence/holds already visible in the
+  // controls — it adds the purpose and the technique (nose vs mouth, how deep).
+  const patternDescEl = document.getElementById('pattern-desc');
+  if (!patternDescEl) {
+    throw new Error('Cannot get pattern description');
+  }
+  const PATTERN_DESC: Record<PresetCode, string> = {
+    [PresetCode.COHERENT]: 'For calm, balanced focus. Breathe softly through the nose, down into the belly — smooth and effortless, never straining.',
+    [PresetCode.BOX]: 'For focus and composure when stress builds. Keep it nasal and low in the belly, staying relaxed through each hold.',
+    [PresetCode.RELAXING]: 'For deep calm and easing into sleep. Inhale quietly through the nose, then let it all out through the mouth with a gentle whoosh.',
+    [PresetCode.CALM]: 'For gently unwinding. Breathe in through the nose and sigh out slowly, letting each long exhale melt tension away.',
+    [PresetCode.CUSTOM]: 'Find your own tempo — shape each phase with the sliders below, breathing however feels natural.',
+  };
+  const setPatternDesc = (code: PresetCode) => {
+    patternDescEl.textContent = PATTERN_DESC[code];
+  };
+
   const patternPreset = registerSelect(
     ['coherent', 'box', 'relaxing', 'calm', 'custom'],
     { coherent: PresetCode.COHERENT, box: PresetCode.BOX, relaxing: PresetCode.RELAXING, calm: PresetCode.CALM, custom: PresetCode.CUSTOM },
     'coherent',
+    setPatternDesc,
   );
+  setPatternDesc(PresetCode.COHERENT); // initial; main.ts's restore select() corrects it
   const sessionLength = registerSelect(
     ['unlimited', 'three', 'five', 'ten', 'twenty'],
     { unlimited: -1, three: minToMs(3), five: minToMs(5), ten: minToMs(10), twenty: minToMs(20) },
@@ -359,8 +384,13 @@ function initControls(): Controls {
 
   const audioEnabled = registerToggle('audio-toggle', syncAmbientAvailability);
   const ambientSound = registerSelect(
-    ['ambient-off', 'ambient-alpha'],
-    { 'ambient-off': 'off', 'ambient-alpha': 'alpha' } as Record<'ambient-off' | 'ambient-alpha', AmbientMode>,
+    ['ambient-off', 'ambient-alpha', 'ambient-theta', 'ambient-delta'],
+    {
+      'ambient-off': 'off',
+      'ambient-alpha': 'alpha',
+      'ambient-theta': 'theta',
+      'ambient-delta': 'delta',
+    } as Record<'ambient-off' | 'ambient-alpha' | 'ambient-theta' | 'ambient-delta', AmbientMode>,
     'ambient-alpha',
   );
 

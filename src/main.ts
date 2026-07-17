@@ -4,10 +4,50 @@ import { initTheme } from "./theme";
 import { write, listen, priorities, read, val, transaction } from "reroi";
 import { ToggleState } from "./ui";
 import { BreathingPhase } from "./breathControl";
+import { registerSW } from "virtual:pwa-register";
+import { initSessionNotice } from "./sessionNotice";
+
+registerSW({
+  immediate: true,
+  onRegisterError(error) {
+    console.error("Could not register the offline service worker", error);
+  },
+});
 
 initTheme();
 
 const app = initApp();
+const notice = initSessionNotice();
+
+listen(app.wakeLock.status, status => {
+  switch (status) {
+    case "inactive":
+    case "active":
+      notice.clear("wake-lock");
+      break;
+    case "unsupported":
+      notice.set("wake-lock", "This browser cannot keep the screen awake during a session.");
+      break;
+    case "unavailable":
+      notice.set("wake-lock", "The screen wake lock is unavailable, possibly because of a device power setting.");
+      break;
+  }
+});
+
+const syncAudioPlayback = async (activation: Promise<boolean>) => {
+  const available = await activation;
+  if (available || !app.audio.enabled || !app.frame.started) {
+    notice.clear("audio");
+    return;
+  }
+
+  notice.set("audio", "Audio is paused by the browser.", {
+    label: "Enable sound",
+    run() {
+      void syncAudioPlayback(app.audio.resume());
+    },
+  });
+};
 
 const _cycle_ = val(0);
 // ms
@@ -106,8 +146,19 @@ listen(app.breathControl.breathRate, (rate) => {
 app.ui.controls.audio.enabled.set(app.audio.enabled);
 app.ui.controls.audio.ambient.select(app.audio.ambient);
 
-app.ui.controls.audio.enabled.onChange(enabled => app.audio.setEnabled(enabled));
+app.ui.controls.audio.enabled.onChange(enabled => {
+  if (!enabled) notice.clear("audio");
+  void syncAudioPlayback(app.audio.setEnabled(enabled));
+});
 app.ui.controls.audio.ambient.onSelect(mode => app.audio.setAmbient(mode));
+
+const recoverAudio = () => {
+  if (document.visibilityState === "visible" && app.frame.started && app.audio.enabled) {
+    void syncAudioPlayback(app.audio.resume());
+  }
+};
+document.addEventListener("visibilitychange", recoverAudio);
+window.addEventListener("pageshow", recoverAudio);
 
 
 // sync on preset change and on init
@@ -190,12 +241,14 @@ function start(app: App) {
 
   // Resume audio while we're still inside the click/keydown gesture, and with
   // the phase already set, so the first frame can cue the inhale.
-  app.audio.start();
+  void syncAudioPlayback(app.audio.start());
   app.frame.startLoop();
+  void app.wakeLock.start();
 }
 
 function stop(app: App) {
   app.frame.stopLoop();
   app.audio.stop();
+  notice.clear("audio");
+  void app.wakeLock.stop();
 }
-

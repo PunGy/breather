@@ -7,6 +7,7 @@ import { DrawingContext, initAnimation } from "./animation";
 import { AudioController, initAudio } from "./audio";
 import { initKeyboard, KeyboardControl } from "./keyboard";
 import { initPersistence, Persistence } from "./persistence";
+import { initWakeLock, WakeLockController } from "./wakeLock";
 
 export interface App {
   // Animation
@@ -34,6 +35,9 @@ export interface App {
   ui: UI,
   // Keyboard interface
   keyboard: KeyboardControl,
+
+  // Keep the display awake while a breathing session is running
+  wakeLock: WakeLockController,
 }
 
 export function initApp(): App {
@@ -45,6 +49,7 @@ export function initApp(): App {
   const breathControl = initBreathControl(persistence);
   const ui = initUI();
   const keyboard = initKeyboard();
+  const wakeLock = initWakeLock();
 
   const timer = initTimer(frame);
   const drawing = initAnimation(frame, breathControl);
@@ -59,6 +64,7 @@ export function initApp(): App {
     timer,
     ui,
     keyboard,
+    wakeLock,
 
     animation: drawing,
     audio,

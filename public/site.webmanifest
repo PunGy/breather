@@ -1,7 +1,9 @@
 {
   "name": "Breather",
   "short_name": "Breather",
+  "id": "/",
   "description": "Guided breathing for calm, focus, and sleep.",
+  "lang": "en",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

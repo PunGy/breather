@@ -57,7 +57,11 @@ export interface AudioController {
   /** Create/resume the audio graph and fade the bed in. Must be called from a
    *  user gesture (the browser autoplay policy blocks sound otherwise). No‑op
    *  while audio is disabled. */
-  start(): void;
+  start(): Promise<boolean>;
+
+  /** Retry playback after Safari or the operating system interrupted it.
+   *  Returns whether the AudioContext reached its running state. */
+  resume(): Promise<boolean>;
 
   /** Fade the bed out and suspend. The graph is kept alive so a later
    *  start() resumes instantly without a rebuild. */
@@ -68,7 +72,7 @@ export interface AudioController {
 
   /** Master on/off. When turned off mid‑session the bed fades out; when turned
    *  back on it fades in again if a session is running. Persisted. */
-  setEnabled(enabled: boolean): void;
+  setEnabled(enabled: boolean): Promise<boolean>;
 
   /** Choose the continuous ambient bed ({@link AmbientMode}). Persisted. */
   setAmbient(mode: AmbientMode): void;
@@ -162,6 +166,10 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
   // in applyBrightness so phase transitions track whichever bed is playing.
   let padBaseCut = (ambient === "off" ? BEDS.alpha : BEDS[ambient]).padCut;
   let prevPhase = BreathingPhase.STOP;
+
+  const setAudioSessionType = (type: WebAudioSessionType) => {
+    if (navigator.audioSession) navigator.audioSession.type = type;
+  };
 
   /** Random‑noise impulse response — a cheap, smooth reverb tail. */
   const makeIR = (seconds: number, decay: number): AudioBuffer => {
@@ -377,20 +385,49 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
   /** Build (if needed), resume and fade the bed in, matching the pad brightness
    *  to the current phase so resuming mid‑breath doesn't jump. Only makes sound
    *  when a session is running *and* audio is enabled. */
-  const engage = () => {
-    if (!running || !enabled) return;
-    if (!ctx) {
-      buildGraph();
-      buildPad();
-      buildEntrainment();
-    }
-    void ctx!.resume();
-    rampGain(master.gain, MASTER_LEVEL, 0.9); // fade in, no click
+  const engage = async (forceRestart = false): Promise<boolean> => {
+    if (!running || !enabled) return true;
 
-    const phase = read(breathControl.activePhase);
-    const voice = VOICES[phase];
-    if (voice) {
-      applyBrightness(voice, Math.max(read(breathControl.phaseLength), 0) / 1000);
+    try {
+      // iOS otherwise treats Web Audio as ambient sound and can mute it when
+      // the phone's silent switch is on.
+      setAudioSessionType("playback");
+
+      if (!ctx) {
+        buildGraph();
+        buildPad();
+        buildEntrainment();
+      }
+
+      const audio = ctx!;
+      if (forceRestart && String(audio.state) === "running") {
+        await audio.suspend();
+      }
+
+      if (String(audio.state) !== "running") {
+        let timer = 0;
+        const resumed = await Promise.race([
+          audio.resume().then(() => true, () => false),
+          new Promise<boolean>((resolve) => {
+            timer = window.setTimeout(() => resolve(false), 1500);
+          }),
+        ]);
+        window.clearTimeout(timer);
+
+        if (!resumed || String(audio.state) !== "running") return false;
+      }
+
+      rampGain(master.gain, MASTER_LEVEL, 0.9); // fade in, no click
+
+      const phase = read(breathControl.activePhase);
+      const voice = VOICES[phase];
+      if (voice) {
+        applyBrightness(voice, Math.max(read(breathControl.phaseLength), 0) / 1000);
+      }
+      return true;
+    } catch (error) {
+      console.warn("Could not start audio playback", error);
+      return false;
     }
   };
 
@@ -401,13 +438,17 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
     const audio = ctx;
     rampGain(master.gain, 0.0001, 0.4);
     window.setTimeout(() => {
-      if (!(running && enabled)) void audio.suspend();
+      if (!(running && enabled)) {
+        void audio.suspend().finally(() => {
+          if (!(running && enabled)) setAudioSessionType("auto");
+        });
+      }
     }, 450);
   };
 
-  const start = () => {
+  const start = async () => {
     running = true;
-    engage();
+    return engage();
   };
 
   const stop = () => {
@@ -417,18 +458,24 @@ export function initAudio(frame: Frame, breathControl: BreathControl, persistenc
 
   return {
     start,
+    resume() {
+      // A suspend/resume cycle recovers Web Audio that iOS reports as running
+      // after an interruption even though it has become inaudible.
+      return engage(true);
+    },
     stop,
     reset() {
       stop();
       prevPhase = BreathingPhase.STOP;
     },
-    setEnabled(value: boolean) {
-      if (enabled === value) return;
+    async setEnabled(value: boolean) {
+      if (enabled === value) return true;
       enabled = value;
       persistence.set(ENABLED_KEY, String(value));
-      if (!running) return; // nothing playing to fade
-      if (enabled) engage();
-      else disengage();
+      if (!running) return true; // nothing playing to fade
+      if (enabled) return engage();
+      disengage();
+      return true;
     },
     setAmbient(mode: AmbientMode) {
       ambient = mode;

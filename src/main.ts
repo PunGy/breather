@@ -6,6 +6,9 @@ import { ToggleState } from "./ui";
 import { BreathingPhase } from "./breathControl";
 import { registerSW } from "virtual:pwa-register";
 import { initSessionNotice } from "./sessionNotice";
+import { inject } from "@vercel/analytics"
+
+inject()
 
 registerSW({
   immediate: true,
